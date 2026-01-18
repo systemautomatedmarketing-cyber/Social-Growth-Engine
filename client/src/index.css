@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+
+  /* Indigo/Slate Palette - Professional & Trustworthy */
+  --background: 220 30% 98%;
+  --foreground: 222 47% 11%;
+  
+  --primary: 230 85% 60%;
+  --primary-foreground: 210 40% 98%;
+  
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 222 47% 11%;
+  
+  --muted: 220 14% 94%;
+  --muted-foreground: 215 16% 47%;
+  
+  --accent: 190 90% 50%;
+  --accent-foreground: 222 47% 11%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 230 85% 60%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  
+  --primary: 230 85% 60%;
+  --primary-foreground: 210 40% 98%;
+  
+  --secondary: 217 19% 27%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --muted: 217 19% 27%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --accent: 190 90% 50%;
+  --accent-foreground: 210 40% 98%;
+  
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --border: 217 19% 27%;
+  --input: 217 19% 27%;
+  --ring: 230 85% 60%;
+  
+  --card: 222 47% 13%;
+  --card-foreground: 210 40% 98%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased font-body;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl shadow-indigo-500/5;
+  }
+  
+  .glass-panel {
+    @apply bg-white/50 backdrop-blur-sm border border-white/20;
+  }
+
+  .premium-gradient {
+    @apply bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500;
+  }
+}
+
+/* Animations */
+@keyframes enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-enter {
+  animation: enter 0.4s ease-out forwards;
+}
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }

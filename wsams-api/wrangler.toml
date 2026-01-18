@@ -1,0 +1,16 @@
+name = "wsams-api"
+main = "src/index.ts"
+compatibility_date = "2025-09-27"
+
+[vars]
+FIREBASE_PROJECT_ID = "social-growth-engine"
+FIREBASE_WEB_API_KEY = "AIzaSyAOuF_M0_HjkRhzaKHnlmOgHf10qBjmHvs"
+
+GOOGLE_SHEETS_SPREADSHEET_ID = "1GrOTpyaQoT_iktYSHzaqkzGR-P1phTCgvWWTPbQcS5A"
+GOOGLE_SERVICE_ACCOUNT_EMAIL = "webstudioams-sheets-reader@gen-lang-client-0337737513.iam.gserviceaccount.com"
+TASKS_TAB = "TASKS_30D"
+
+[observability]
+[observability.logs]
+enabled = false
+invocation_logs = true

@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "social-growth-engine"
+  },
+  "targets": {
+    "social-growth-engine": {
+      "hosting": {
+        "main": [
+          "social-growth-engine"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
