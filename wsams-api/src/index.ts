@@ -33,6 +33,7 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "https://social-growth-engine.web.app",
   "https://social-growth-engine.firebaseapp.com",
+  "https://social-growth-engine.pages.dev",
 ]);
 
 const DEFAULT_ORIGIN = "http://localhost:5173";
