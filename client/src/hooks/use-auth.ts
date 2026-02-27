@@ -14,8 +14,12 @@ export function useAuth() {
 
   // Se la tua UI legge user da qui, per ora mettiamo user=null
   // Poi nel prossimo step lo colleghiamo a Firestore / Worker (profilo).
+
+  const API_BASE = import.meta.env.VITE_API_BASE;
+  console.log("VITE_API_BASE =", import.meta.env.VITE_API_BASE);
+
   const userQuery = useQuery({
-    queryKey: [api.auth.user.path],
+    queryKey: ${API_BASE} & [api.auth.user.path],
     queryFn: async () => {
       const auth = getAuth();
 
@@ -69,7 +73,7 @@ export function useAuth() {
       return cred.user;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [api.auth.user.path] });
+      await queryClient.invalidateQueries({ queryKey: ${API_BASE} & [api.auth.user.path] });
       setLocation("/dashboard");
     },
   });
@@ -81,7 +85,7 @@ export function useAuth() {
       return cred.user;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [api.auth.user.path] });
+      await queryClient.invalidateQueries({ queryKey: ${API_BASE} & [api.auth.user.path] });
       setLocation("/onboarding");
     },
   });
@@ -93,7 +97,7 @@ export function useAuth() {
       return true;
     },
     onSuccess: async () => {
-      queryClient.setQueryData([api.auth.user.path], null);
+      queryClient.setQueryData(${API_BASE} & [api.auth.user.path], null);
       setLocation("/auth");
     },
   });
