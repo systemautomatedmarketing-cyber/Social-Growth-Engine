@@ -4,9 +4,15 @@ import { api } from "@shared/routes";
 
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, sendPasswordResetEmail  } from "firebase/auth";
+//import { doc, getDoc } from "firebase/firestore";
+//import { db } from "@/lib/firebase";
+
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+
+const TRIAL_DAYS = 40;
+const ms = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -14,12 +20,8 @@ export function useAuth() {
 
   // Se la tua UI legge user da qui, per ora mettiamo user=null
   // Poi nel prossimo step lo colleghiamo a Firestore / Worker (profilo).
-
-  const API_BASE = import.meta.env.VITE_API_BASE;
-  console.log("VITE_API_BASE =", import.meta.env.VITE_API_BASE);
-
   const userQuery = useQuery({
-    queryKey: ${API_BASE} & [api.auth.user.path],
+    queryKey: [api.auth.user.path],
     queryFn: async () => {
       const auth = getAuth();
 
@@ -43,7 +45,8 @@ export function useAuth() {
       email: fbUser.email,
       currentDay: 1,
       creditsBalance: 0,
-      plan: "FREE",
+//      plan: "FREE",
+      plan: "TRIAL",
       onboarding: null,
     };
 
@@ -73,7 +76,7 @@ export function useAuth() {
       return cred.user;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ${API_BASE} & [api.auth.user.path] });
+      await queryClient.invalidateQueries({ queryKey: [api.auth.user.path] });
       setLocation("/dashboard");
     },
   });
@@ -84,9 +87,35 @@ export function useAuth() {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       return cred.user;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ${API_BASE} & [api.auth.user.path] });
+//    onSuccess: async () => {
+    onSuccess: async (fbUser) => {
+      const trialEndsAt = Timestamp.fromMillis(Date.now() + ms);
+
+      await setDoc(
+        doc(db, "users", fbUser.uid),
+        {
+          email: fbUser.email,
+          plan: "TRIAL",
+          trialStartedAt: serverTimestamp(),
+          trialEndsAt,
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await queryClient.invalidateQueries({ queryKey: [api.auth.user.path] });
       setLocation("/onboarding");
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ email }: { email: string }) => {
+      const auth = getAuth();
+      const normalized = email.trim().toLowerCase();
+      await sendPasswordResetEmail(auth, email);
+      return true;
     },
   });
 
@@ -97,10 +126,47 @@ export function useAuth() {
       return true;
     },
     onSuccess: async () => {
-      queryClient.setQueryData(${API_BASE} & [api.auth.user.path], null);
+      queryClient.setQueryData([api.auth.user.path], null);
       setLocation("/auth");
     },
   });
+
+const updateProfileMutation = useMutation({
+  mutationFn: async ({ firstName, lastName}: { firstName: string; lastName: string }) => {
+  const auth = getAuth();
+  if (!auth) throw new Error("Non autenticato");
+  await updateDoc(doc(db, "users", auth.uid), { firstName, lastName});
+    return true;
+  },
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.auth.user.path] }), // o la tua query user
+});
+
+const updateEmailMutation = useMutation({
+  mutationFn: async ({ newEmail, currentPassword }: { newEmail: string; currentPassword: string }) => {
+    const u = auth.currentUser;
+    if (!u?.email) throw new Error("Non autenticato");
+
+    const cred = EmailAuthProvider.credential(u.email, currentPassword);
+    await reauthenticateWithCredential(u, cred);
+
+    await updateEmail(u, newEmail.trim().toLowerCase());
+    return true;
+  },
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] }),
+});
+
+const updatePasswordMutation = useMutation({
+  mutationFn: async ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
+    const u = auth.currentUser;
+    if (!u?.email) throw new Error("Non autenticato");
+
+    const cred = EmailAuthProvider.credential(u.email, currentPassword);
+    await reauthenticateWithCredential(u, cred);
+
+    await updatePassword(u, newPassword);
+    return true;
+  },
+});
 
   return {
     user: userQuery.data as any,
@@ -108,5 +174,9 @@ export function useAuth() {
     loginMutation,
     registerMutation,
     logoutMutation,
+    resetPasswordMutation,
+    updateProfileMutation,
+    updateEmailMutation,
+    updatePasswordMutation,
   };
 }

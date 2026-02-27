@@ -7,6 +7,47 @@ import { getAuth } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+class ApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function throwApiErrorIfNotOk(res: Response) {
+  if (res.ok) return;
+
+  const contentType = res.headers.get("content-type") || "";
+  let message = "";
+  let code: string | undefined;
+
+  try {
+    if (contentType.includes("application/json")) {
+      const j: any = await res.json();
+       
+const parsed = api.tasks.today.responses[200].parse(json); // se parse supporta tasks
+return {
+  ...parsed,
+  meta: json.meta || null,
+}; 
+      // il tuo Worker ritorna { message: "PRO_REQUIRED" }
+      message = j?.message || j?.error || JSON.stringify(j);
+      code = j?.code || j?.message; // comodo: PRO_REQUIRED finisce qui
+    } else {
+      message = await res.text();
+      code = message;
+    }
+  } catch {
+    message = `HTTP ${res.status}`;
+  }
+
+  throw new ApiError(message || `HTTP ${res.status}`, res.status, code);
+}
 
 async function authFetch(pathOrUrl: string, init: RequestInit = {}) {
   const auth = getAuth();
@@ -40,8 +81,20 @@ export function useTasks() {
     queryFn: async () => {
       const res = await authFetch(api.tasks.today.path);
       
-      if (!res.ok) throw new Error(await res.text());
-      return api.tasks.today.responses[200].parse(await res.json());
+//      if (!res.ok) throw new Error(await res.text());
+      await throwApiErrorIfNotOk(res);
+ 
+//      return api.tasks.today.responses[200].parse(await res.json());
+      const raw = await res.json();
+
+      // parse SOLO quello che ti serve (tasks, day, program, ecc.)
+      const parsed = api.tasks.today.responses[200].parse(raw);
+
+      // ✅ ri-attacco meta (se presente) senza perderla
+      return {
+        ...parsed,
+        meta: raw.meta ?? null,
+      };
     },
   });
 
@@ -80,7 +133,13 @@ export function useTasks() {
         method: api.tasks.updateStatus.method, // PATCH
         body: JSON.stringify({ status, day }),
       });
-      if (!res.ok) throw new Error(await res.text());
+
+      console.log("res.status : ", res.status);
+      console.log("res.day : ", res.day);
+
+//      if (!res.ok) throw new Error(await res.text());
+      await throwApiErrorIfNotOk(res);
+
       return api.tasks.updateStatus.responses[200].parse(await res.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.tasks.today.path] }),
@@ -94,7 +153,9 @@ export function useTasks() {
       });
 
 //      if (!res.ok) throw new Error("Failed to complete day");
-      if (!res.ok) throw new Error(await res.text());
+//      if (!res.ok) throw new Error(await res.text());
+      await throwApiErrorIfNotOk(res);
+
       return api.tasks.completeDay.responses[200].parse(await res.json());
     },
     onSuccess: () => {
@@ -113,6 +174,8 @@ export function useTasks() {
       variables: Record<string, string>;
 //      ai_prompt_template: string;
     }) => {
+//console.log("Primo");
+
       const res = await authFetch(api.ai.generate.path, {
         method: api.ai.generate.method,
 //        headers: { "Content-Type": "application/json" },
@@ -121,6 +184,8 @@ export function useTasks() {
 //        body: JSON.stringify({ taskId, ai_prompt_template }),
 //        credentials: "include",
       });
+//console.log("secondo");
+//console.log("res: ", res);
 
       console.log("AI res.status: ", res.status);
 
@@ -147,16 +212,48 @@ export function useTasks() {
     },
   });
 
-  const submitKpiMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await authFetch(api.kpi.submit.path, {
-        method: api.kpi.submit.method,
-//        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-//        credentials: "include",
-      });
+//  const submitKpiMutation = useMutation({
+//    mutationFn: async (data: any) => {
+//      const res = await authFetch(api.kpi.submit.path, {
+//        method: api.kpi.submit.method,
+////        headers: { "Content-Type": "application/json" },
+//        body: JSON.stringify(data),
+////        credentials: "include",
+//      });
+
+const submitKpiMutation = useMutation({
+  mutationFn: async (payload: {
+    programId?: string;
+    todayDay: number;
+    kpiForDay: number;
+    data: {
+      conversationsCount: number;
+      dmSent: number;
+      interestedContacts: number;
+      salesCount: number;
+      notes?: string;
+    };
+  }) => {
+    const res = await authFetch("/api/kpi", {
+      method: "POST",
+      body: JSON.stringify({
+        programId: payload.programId ?? "TASKS_30D",
+        todayDay: payload.todayDay,
+        kpiForDay: payload.kpiForDay,
+        data: payload.data,
+      }),
+    });
+
+console.log("resKpi: ", res);
+//console.log("resJsonKpi: ", res.json());
+
+console.log("payloadKpi : ", payload);
+
+
 //      if (!res.ok) throw new Error("Failed to submit KPI");
-      if (!res.ok) throw new Error(await res.text());
+//      if (!res.ok) throw new Error(await res.text());
+      await throwApiErrorIfNotOk(res);
+
       return res.json();
     },
     onSuccess: () => {
@@ -205,7 +302,8 @@ export function useOnboarding() {
           onboarding: data,
           currentDay: 1,
           creditsBalance: 0,
-          plan: "FREE",
+//          plan: "FREE",
+          plan: "TRIAL",
           updatedAt: new Date().toISOString(),
           onboardingCompletedAt: new Date().toISOString(),
         },

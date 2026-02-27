@@ -5,6 +5,7 @@ import {
   TrendingUp,
   CreditCard, 
   UserCircle,
+  User, 
   LogOut,
   Zap
 } from "lucide-react";
@@ -14,6 +15,7 @@ export function Navigation() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { logoutMutation } = useAuth();  
+//  const { user, logoutMutation  } = useAuth();
 
   if (!user) return null;
 
@@ -21,6 +23,8 @@ export function Navigation() {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/credits", label: "Crediti", icon: Zap },
     { href: "/pro", label: "Upgrade", icon: CreditCard },
+    { href: "/profile", label: "Profile", icon: User },
+
   ];
 
   return (

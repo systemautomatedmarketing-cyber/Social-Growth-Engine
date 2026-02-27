@@ -8,15 +8,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Rocket, Loader2 } from "lucide-react";
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
 export default function AuthPage() {
-  const { loginMutation, registerMutation,  user, logoutMutation } = useAuth();
+//  const { loginMutation, registerMutation,  user, logoutMutation } = useAuth();
+  const { loginMutation, registerMutation, logoutMutation, resetPasswordMutation } = useAuth();
+
   const login = loginMutation;
   const register = registerMutation;
   const logout = logoutMutation;
+  const resetPassword = resetPasswordMutation;
 
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +52,37 @@ export default function AuthPage() {
       });
     }
   };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const emailToUse = (resetEmail || username).trim();
+      await resetPassword.mutateAsync({ email: emailToUse });
+
+      toast({
+        title: "Email inviata",
+        description: (
+          <span>
+            Controlla la posta{" "}
+            <span className="font-semibold text-indigo-600">
+              (anche Spam/Posta Indesiderata)
+            </span>{" "}
+            per reimpostare la password.
+          </span>
+        ),
+      });
+
+      setResetOpen(false);
+      setResetEmail("");
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: err.message || "Impossibile inviare l’email di recupero.",
+      });
+    }
+  };
+
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 p-4">
@@ -90,17 +130,67 @@ export default function AuthPage() {
                     required
                   />
                 </div>
+
                 <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={login?.isPending}>
                   {login.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Accedi
                 </Button>
               </form>
+
+<div className="text-right">
+  <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+    <DialogTrigger asChild>
+      <button
+        type="button"
+        className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
+      >
+        Password dimenticata?
+      </button>
+    </DialogTrigger>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Reimposta password</DialogTitle>
+      </DialogHeader>
+
+      <form onSubmit={handleResetPassword} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="reset-email">Email</Label>
+          <Input
+            id="reset-email"
+            type="email"
+            placeholder="tu@esempio.it"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            required
+          />
+          <p className="text-xs text-slate-500">
+            Ti invieremo un’email con il link per reimpostare la password.
+          </p>
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          disabled={resetPassword.isPending}
+        >
+          {resetPassword.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          ) : null}
+          Invia email
+        </Button>
+      </form>
+    </DialogContent>
+  </Dialog>
+</div>
+
             </TabsContent>
             
             <TabsContent value="register">
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reg-username">Email o Username</Label>
+                  <span className="font-semibold text-indigo-600">
+                    <Label htmlFor="reg-username">Email o Username</Label>
+                  </span>
                   <Input 
                     id="reg-username" 
                     placeholder="tu@esempio.it" 
@@ -110,7 +200,9 @@ export default function AuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reg-password">Password</Label>
+                  <span className="font-semibold text-indigo-600">
+                    <Label htmlFor="reg-password">Password</Label>
+                  </span>
                   <Input 
                     id="reg-password" 
                     type="password" 

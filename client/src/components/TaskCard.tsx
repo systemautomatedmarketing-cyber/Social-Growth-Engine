@@ -33,7 +33,8 @@ interface TaskCardProps {
   task: Task;
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+//export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, onCompleteClick, }: { task: any; onCompleteClick?: (task: any) => void; }) {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
@@ -59,6 +60,22 @@ export function TaskCard({ task }: TaskCardProps) {
       console.error("AI generate failed:", e?.message || e);
     }
   };
+
+  const handleComplete = async () => {
+    // ✅ Se KPI: apri modale invece di segnare Done subito
+    if (task?.task_type === "KPI" && task?.status !== "Done") {
+      onCompleteClick?.(task); // passa tutto il task
+      return;
+    }
+
+    // ✅ Tutti gli altri task: comportamento normale
+    await updateStatusMutation.mutateAsync({
+      taskId: task.task_id,
+      status: "Done",
+      day: task.day,
+    });
+  };
+
 
   return (
     <motion.div
@@ -213,9 +230,10 @@ export function TaskCard({ task }: TaskCardProps) {
                               })
                             }
                           />*/}
-                          <Label>Piano Utente: {user.plan} </Label>
-                          <Label>Crediti Residui: </Label>
-                          <Label> {user?.creditsBalance} Crediti </Label>
+                          <Label>Piano Utente: <b>{user.plan}</b> </Label>
+			{ user.plan === "FREE" && ( 
+			  <Label> - Crediti Residui: <b>{user?.creditsBalance}</b> Crediti </Label>
+                        )}
                         </div>
                         <div className="space-y-2">
                           {/*                          <Label>Tono</Label>
@@ -231,20 +249,24 @@ export function TaskCard({ task }: TaskCardProps) {
                           <Label>
                             Crediti necessari per questa operazione:{" "}
                           </Label>
-                          <Label> {task.credits_cost} Crediti </Label>
+                          <Label> <b>{task.credits_cost}</b> Crediti </Label>
                         </div>
                       </div>
                       <DialogFooter>
-                        <a href="https://buy.stripe.com/fZu9ATb2v43f1Vz4zT7AI03">
-                          <Button className="w-full">
-                            Acquista 100 Crediti!
-                          </Button>
-                        </a>
+			{ user.plan === "FREE" && ( 
+                          <a href="https://buy.stripe.com/fZu9ATb2v43f1Vz4zT7AI03" target="_blank">
+                            <Button className="w-full">
+                              Acquista 100 Crediti!
+                            </Button>
+                          </a>
+                        )}
                         <br></br>
                         <Button
                           onClick={handleGenerateAI}
-                          disabled={generateAiMutation.isPending}
-                          className="w-full">
+//                          disabled={generateAiMutation.isPending}
+                          disabled={generateAiMutation.isPending ||(user.plan === "FREE" && user.creditsBalance < task.credits_cost)}
+                          className="w-full"
+                        >
                           {generateAiMutation.isPending
                             ? "Generazione in corso..."
                             : "Genera Contenuto"}
@@ -278,6 +300,8 @@ export function TaskCard({ task }: TaskCardProps) {
                 </div>
               )}
 
+{ console.log("isPending: ", isPending)}
+
               <div className="flex gap-2 justify-end pt-2 border-t border-border">
                 {isPending && (
                   <>
@@ -296,13 +320,15 @@ export function TaskCard({ task }: TaskCardProps) {
                       Rimanda a domani
                     </Button>
                     <Button
-                      onClick={() =>
-                        updateStatusMutation.mutate({
-                          taskId: task.task_id,
-                          status: "Done",
-                          day: task.day,
-                        })
-                      }
+//                      onClick={() =>
+//                        updateStatusMutation.mutate({
+//                          taskId: task.task_id,
+//                          status: "Done",
+//                          day: task.day,
+//                        })
+//                      }
+
+                      onClick={handleComplete}
                       disabled={updateStatusMutation.isPending}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white"
                     >

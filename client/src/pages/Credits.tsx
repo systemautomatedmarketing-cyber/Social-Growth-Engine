@@ -75,7 +75,7 @@ export default function Credits() {
             </div>
             <Sparkles className="absolute right-[-20px] top-[-20px] w-64 h-64 text-indigo-500 opacity-20" />
             <br></br>
-            <a href="https://buy.stripe.com/fZu9ATb2v43f1Vz4zT7AI03">
+            <a href="https://buy.stripe.com/fZu9ATb2v43f1Vz4zT7AI03" target="_blank">
               <Button
                 size="lg"
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-lg h-14 rounded-xl shadow-lg shadow-indigo-200"

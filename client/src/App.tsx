@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import Onboarding from "@/pages/Onboarding";
 import Credits from "@/pages/Credits";
 import Pro from "@/pages/Pro";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -36,6 +37,37 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     return null;
   }
 
+//  if (user.plan === "EXPIRED") {
+//    setLocation("/pro");
+//    return null;
+//  }
+
+ // 🔎 Controllo trial
+  const plan = user.plan || "FREE";
+
+  let isExpired = false;
+
+  if (plan === "EXPIRED") {
+    isExpired = true;
+  }
+
+  if (user.trialEndsAt) {
+    const trialEndMillis =
+      typeof user.trialEndsAt.toMillis === "function"
+        ? user.trialEndsAt.toMillis()
+        : new Date(user.trialEndsAt).getTime();
+
+    if (Date.now() > trialEndMillis) {
+      isExpired = true;
+    }
+  }
+
+  if (isExpired) {
+    alert("TRIAL Scaduta!\nIl tuo periodo di prova è terminato.\n\nAggiorna a PRO per continuare!");
+    setLocation("/pro");
+    return null;
+  }
+
   return <Component />;
 }
 
@@ -43,6 +75,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/pro" component={Pro} />
       
       <Route path="/dashboard">
         <ProtectedRoute component={Dashboard} />
@@ -53,9 +86,13 @@ function Router() {
       <Route path="/credits">
         <ProtectedRoute component={Credits} />
       </Route>
-      <Route path="/pro">
-        <ProtectedRoute component={Pro} />
+//      <Route path="/pro">
+//        <ProtectedRoute component={Pro} />
+//      </Route>
+      <Route path="/profile">
+        <ProtectedRoute component={Profile} />
       </Route>
+
       {/* Protected Routes */}
       <Route path="/">
         <ProtectedRoute component={Dashboard} />
