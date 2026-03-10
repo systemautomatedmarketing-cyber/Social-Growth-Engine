@@ -6,6 +6,8 @@ import { getAuth } from "firebase/auth";
 
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getDeferrals } from "@/lib/deferrals";
+
 
 class ApiError extends Error {
   status: number;

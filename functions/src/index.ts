@@ -4,6 +4,9 @@ import express from "express";
 import cors from "cors";
 import { readSheet } from "./api/sheets";
 
+const TRIAL_DAYS = 40;
+const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
+
 admin.initializeApp();
 
 const app = express();
@@ -12,6 +15,47 @@ app.use(express.json({ limit: "2mb" }));
 
 // Health check
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+async function assertTrialActive(uid: string) {
+  // CONSIGLIO: usa la stessa collection della UI: "users"
+  const ref = admin.firestore().doc(`users/${uid}`);
+  const snap = await ref.get();
+
+  if (!snap.exists) {
+    // se vuoi: crea profilo minimo
+    await ref.set({
+      plan: "TRIAL",
+      trialStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+      trialEndsAt: admin.firestore.Timestamp.fromMillis(Date.now() + TRIAL_MS),
+      isActive: true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return;
+  }
+
+  const data = snap.data() || {};
+  const plan = String(data.plan || "TRIAL");
+  const isActive = data.isActive !== false;
+
+  // se già disattivo
+  if (!isActive || plan === "EXPIRED") {
+    throw new Error("TRIAL_EXPIRED");
+  }
+
+  // calcolo scadenza
+  const trialEndsAt = data.trialEndsAt?.toMillis?.() ?? null;
+  if (trialEndsAt && Date.now() > trialEndsAt) {
+    await ref.set({
+      plan: "EXPIRED",
+      isActive: false,
+      expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    throw new Error("TRIAL_EXPIRED");
+  }
+}
 
 async function getUidFromAuth(req: any): Promise<string> {
   const h = req.headers.authorization || "";
@@ -45,6 +89,7 @@ function matches(onb: any, t: any) {
 app.get("/api/tasks/today", async (req, res) => {
   try {
     const uid = await getUidFromAuth(req);
+    await assertTrialActive(uid);
 
     const profileRef = admin.firestore().doc(`profiles/${uid}`);
     const snap = await profileRef.get();
@@ -65,7 +110,10 @@ app.get("/api/tasks/today", async (req, res) => {
 
     res.json({ program, day, tasks });
   } catch (e: any) {
-    res.status(401).json({ error: e.message || "Unauthorized" });
+    const msg = e.message || "Unauthorized";
+    if (msg === "TRIAL_EXPIRED") return res.status(403).json({ error: "Trial scaduto" });
+    return res.status(401).json({ error: msg });
+//    res.status(401).json({ error: e.message || "Unauthorized" });
   }
 });
 

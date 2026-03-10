@@ -28,6 +28,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@shared/routes";
+
+import { deferTask, setInjectedTaskStatus } from "@/lib/deferrals";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { REPLACEMENT_POOL } from "@/lib/replacementPool";
+
 
 interface TaskCardProps {
   task: Task;
@@ -44,6 +51,9 @@ export function TaskCard({ task, onCompleteClick, }: { task: any; onCompleteClic
   const isCompleted = task.status === "Done";
   const isSkipped = task.status === "Skipped";
   const isPending = task.status === "Pending" || !task.status;
+
+  const qc = useQueryClient();
+  const [selectedReplacementId, setSelectedReplacementId] = useState("");
 
   const handleGenerateAI = async () => {
     try {
@@ -62,6 +72,24 @@ export function TaskCard({ task, onCompleteClick, }: { task: any; onCompleteClic
   };
 
   const handleComplete = async () => {
+    // ✅ Se task è "iniettato" (rimandato o sostitutivo) -> aggiorna Firestore, NON backend
+    if (task.__injected) {
+      if (!user) return;
+
+      await setInjectedTaskStatus({
+        uid: user.id,
+        day: user.currentDay ?? task.day,
+        carryOriginalTaskId: task.__carryOriginalTaskId,
+        status: "Done",
+      });
+
+      // ricarica deferrals così la UI vede status Done
+      await qc.invalidateQueries({
+        queryKey: ["deferrals", user.id, user.currentDay ?? task.day],
+      });
+
+      return;
+    }
     // ✅ Se KPI: apri modale invece di segnare Done subito
     if (task?.task_type === "KPI" && task?.status !== "Done") {
       onCompleteClick?.(task); // passa tutto il task
@@ -303,18 +331,59 @@ export function TaskCard({ task, onCompleteClick, }: { task: any; onCompleteClic
 { console.log("isPending: ", isPending)}
 
               <div className="flex gap-2 justify-end pt-2 border-t border-border">
+  <select
+    className="border rounded px-2 py-1 text-sm"
+    value={selectedReplacementId}
+    onChange={(e) => setSelectedReplacementId(e.target.value)}
+  >
+    <option value="">Sostituisci con… (opzionale)</option>
+    {REPLACEMENT_POOL.map((r) => (
+      <option key={r.task_id} value={r.task_id}>
+        {r.title}
+      </option>
+    ))}
+  </select>
+
                 {isPending && (
                   <>
                     <Button
                       variant="ghost"
-                      onClick={() =>
-                        updateStatusMutation.mutate({
-                          taskId: task.task_id,
-                          status: "Deferred",
-                          day: task.day,
-                        })
-                      }
-                      disabled={updateStatusMutation.isPending}
+//                      onClick={() =>
+//                        updateStatusMutation.mutate({
+//                          taskId: task.task_id,
+//                          status: "Deferred",
+//                          day: task.day,
+//                        })
+//                      }
+                      onClick={async () => {
+                        if (!user) return;
+
+                        // Qui (per ora) rimando senza sostituzione
+ const replacement = selectedReplacementId
+        ? REPLACEMENT_POOL.find((x) => x.task_id === selectedReplacementId)
+        : undefined;
+                        await deferTask({
+                          uid: user.id, //user.uid,
+                          fromDay: task.day,
+                          task,
+replacementTaskSnapshot: replacement
+          ? { ...replacement, day: task.day } // 👈 per farlo risultare “di oggi”
+          : undefined,
+                        });
+
+                        // ricarico deferrals + today
+//                        await qc.invalidateQueries({ queryKey: ["deferrals", user.uid, user.currentDay] });
+//                        const day = user?.currentDay ?? task.day;
+//                        await qc.invalidateQueries({ queryKey: ["deferrals", user.id, day] });
+                          await qc.invalidateQueries({ queryKey: ["deferrals", user.id, user.currentDay ?? task.day] });
+
+
+                        await qc.invalidateQueries({ queryKey: [api.tasks.today.path] });
+
+ // reset select dopo l'azione
+      setSelectedReplacementId("");
+                      }}
+                      disabled={updateStatusMutation.isPending || isCompleted}
                     >
                       <SkipForward className="w-4 h-4 mr-2" />
                       Rimanda a domani

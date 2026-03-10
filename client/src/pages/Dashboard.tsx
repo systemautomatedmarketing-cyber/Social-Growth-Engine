@@ -26,10 +26,38 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getDeferrals } from "@/lib/deferrals";
+
+import { enablePushNotifications } from "@/lib/push";
+
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function Dashboard() {
 //  const { user } = useAuth();
   const { user, logoutMutation  } = useAuth();
+
+useEffect(() => {
+  if (!user?.id) return;
+
+  const updateLastSeen = async () => {
+    try {
+      await setDoc(
+        doc(db, "users", user.id),
+        {
+          lastSeenAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Errore aggiornamento lastSeenAt:", error);
+    }
+  };
+
+  updateLastSeen();
+}, [user?.id]);
+
 
 //  const { todayQuery } = useTasks();
   const { todayQuery, completeDayMutation } = useTasks();
@@ -38,7 +66,15 @@ export default function Dashboard() {
 
   const { data, isLoading } = todayQuery;
 
-const promos = (data?.meta?.promos ?? []) as any[];
+  const day = user?.currentDay ?? 1;
+
+  const deferralsQuery = useQuery({
+    queryKey: ["deferrals", user?.id, day],
+    enabled: !!user?.id && !!day,
+    queryFn: () => getDeferrals(user!.id, day),
+  });
+  
+  const promos = (data?.meta?.promos ?? []) as any[];
 
 useEffect(() => {
   const first = data?.tasks?.[0];
@@ -104,10 +140,27 @@ const err = todayQuery.error as any;
     );
   }
 
+  const hidden = new Set(deferralsQuery.data?.hiddenTaskIds ?? []);
+  const carryOver = deferralsQuery.data?.carryOver ?? [];
+
+  const baseTasks = (todayQuery.data?.tasks ?? []).filter((t: any) => !hidden.has(t.task_id));
+
+// i carryOver li metto in cima e li marco come "virtuali"
+  const injectedTasks = carryOver.map((c: any) => ({
+    ...c.taskSnapshot,
+    __injected: true,
+    __carryOriginalTaskId: c.originalTaskId, // ✅ ID della riga carryOver
+  }));
+
+  const tasksForUI = [...injectedTasks, ...baseTasks];
+
   // Calculate progress
-  const totalTasks = data?.tasks.length || 0;
+//  const totalTasks = data?.tasks.length || 0;
+  const totalTasks = tasksForUI.length || 0;
+
+//    data?.tasks.filter(
   const completedTasks =
-    data?.tasks.filter(
+    tasksForUI.filter(
       (t: any) => t.status === "Done" || t.status === "Skipped",
     ).length || 0;
   const isAllComplete = totalTasks > 0 && totalTasks === completedTasks;
@@ -118,7 +171,9 @@ const err = todayQuery.error as any;
 console.log("data?.meta: ", data?.meta);
 console.log("data?.meta?.lockedAfterKpi: ", data?.meta?.lockedAfterKpi);
 
-const kpiTask = data?.tasks?.find((t: any) => t.task_type === "KPI");
+//const kpiTask = data?.tasks?.find((t: any) => t.task_type === "KPI");
+const kpiTask = tasksForUI?.find((t: any) => t.task_type === "KPI");
+
 const kpiDone = kpiTask?.status === "Done";
 
 //const lockedAfterKpi = Boolean(data?.meta?.lockedAfterKpi);
@@ -305,12 +360,13 @@ const lockMessage = data?.meta?.lockMessage || "Per proseguire serve PRO.";
               </h3>
             </div>
 
-{data?.tasks.filter(
-      (t: any) => t.goal === "ALL" || t.goal === user.goal,
-    ).length || 0}
+<div className="md:hidden">
+ {tasksForUI.filter(
+      (t: any) => t.goal === "ALL" || t.goal === user.goal).length || 0}
+</div>
 
-            {data?.tasks.map((task: any) => (
-              <TaskCard key={task.task_id} task={task} 
+            {tasksForUI.map((task: any) => (
+              <TaskCard key={(task.__injected ? "inj-" : "") + task.task_id} task={task} 
                 onCompleteClick={(t: any) => {
                   // Se è KPI, apri la modale (solo se non è già Done)
                  if (t?.task_type === "KPI" && t?.status !== "Done") {
@@ -324,7 +380,7 @@ const lockMessage = data?.meta?.lockMessage || "Per proseguire serve PRO.";
 
 { console.log ("kpiDone: ", kpiDone) }
 
-            {data?.tasks.length === 0 && (
+            {tasksForUI.length === 0 && (
               <div className="text-center py-12 text-slate-400">
                 <p>Nessuna attività per oggi. Goditi il riposo!</p>
               </div>
@@ -348,6 +404,18 @@ const lockMessage = data?.meta?.lockMessage || "Per proseguire serve PRO.";
   </div>
 ))}
 
+<Button
+  onClick={async () => {
+    try {
+      await enablePushNotifications();
+      alert("Notifiche attivate con successo");
+    } catch (e: any) {
+      alert(e.message || "Impossibile attivare le notifiche");
+    }
+  }}
+>
+  Attiva notifiche
+</Button>
 
           {/* Complete Day Button */}
           <div className="sticky bottom-20 md:bottom-8 flex justify-center pt-4">
